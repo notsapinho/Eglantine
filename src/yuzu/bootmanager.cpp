@@ -523,7 +523,14 @@ void GRenderWindow::mouseMoveEvent(QMouseEvent* event) {
 
     input_subsystem->GetMouse()->MouseMove(touch_x, touch_y);
     input_subsystem->GetMouse()->TouchMove(touch_x, touch_y);
-    input_subsystem->GetMouse()->Move(pos.x(), pos.y(), center_x, center_y);
+    // A game hook turns the camera with the mouse (Pokopia 2.0.1, core/pokopia): with mouse
+    // panning on, the movement goes to it instead of the emulated right stick.
+    if (Settings::values.mouse_panning && !Settings::values.mouse_enabled && QtCommon::system &&
+        QtCommon::system->HIDCore().IsMouseCameraHooked()) {
+        QtCommon::system->HIDCore().AddMouseLook(pos.x() - center_x, pos.y() - center_y);
+    } else {
+        input_subsystem->GetMouse()->Move(pos.x(), pos.y(), center_x, center_y);
+    }
 
     // Center mouse for mouse panning
     if (Settings::values.mouse_panning && !Settings::values.mouse_enabled) {

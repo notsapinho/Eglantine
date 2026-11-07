@@ -2719,6 +2719,23 @@ static void RecordSvcTimeline(const SvcTimelineEvent& event) {
 }
 
 void Call(Core::System& system, u32 imm) {
+    // Game hooks (core/pokopia): their svc 0x7d sits in a stub, never where the game itself calls.
+    if (imm == 0x7d && !g_guest_hooks.empty()) {
+        auto& hook_kernel = system.Kernel();
+        auto* const arm = GetCurrentProcess(hook_kernel).GetArmInterface(
+            hook_kernel.CurrentPhysicalCoreIndex());
+        ThreadContext ctx{};
+        arm->GetContext(ctx);
+        auto hook = g_guest_hooks.find(ctx.pc - 4);
+        if (hook == g_guest_hooks.end()) {
+            hook = g_guest_hooks.find(ctx.pc);
+        }
+        if (hook != g_guest_hooks.end()) {
+            hook->second(system, ctx);
+            arm->SetContext(ctx);
+            return;
+        }
+    }
     const auto profile_start =
         SvcProfileEnabled() ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
     auto& kernel = system.Kernel();

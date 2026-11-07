@@ -1177,6 +1177,8 @@ add_library(core STATIC
     memory/read_traps.h
     perf_stats.cpp
     perf_stats.h
+    pokopia/mouse_camera.cpp
+    pokopia/mouse_camera.h
     reporter.cpp
     reporter.h
     tools/freezer.cpp

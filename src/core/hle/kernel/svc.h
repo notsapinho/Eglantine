@@ -537,6 +537,11 @@ void SvcWrap_CallSecureMonitor64(Core::System& system, std::span<uint64_t, 8> ar
 /// Diagnostic guest probes (EDEN_GUEST_PROBE): guest address -> replaced instruction.
 inline std::map<u64, u32> g_guest_probes;
 
+/// Game hooks (core/pokopia): guest address of a hook's svc 0x7d -> the host code it runs. The
+/// guest continues after the svc with the context the hook leaves.
+using GuestHook = void (*)(Core::System& system, ThreadContext& ctx);
+inline std::map<u64, GuestHook> g_guest_hooks;
+
 void Call(Core::System& system, u32 imm);
 
 } // namespace Kernel::Svc

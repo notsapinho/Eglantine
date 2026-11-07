@@ -193,6 +193,28 @@ s8 HIDCore::GetNmouseWheelDpad() const {
     return nmouse_wheel_dpad;
 }
 
+void HIDCore::SetMouseCameraHooked(bool hooked) {
+    mouse_camera_hooked = hooked;
+    TakeMouseLook();
+}
+
+bool HIDCore::IsMouseCameraHooked() const {
+    return mouse_camera_hooked;
+}
+
+void HIDCore::AddMouseLook(s32 dx, s32 dy) {
+    std::scoped_lock lock{mouse_look_mutex};
+    mouse_look_x += dx;
+    mouse_look_y += dy;
+}
+
+std::pair<s32, s32> HIDCore::TakeMouseLook() {
+    std::scoped_lock lock{mouse_look_mutex};
+    const std::pair<s32, s32> look{mouse_look_x, mouse_look_y};
+    mouse_look_x = mouse_look_y = 0;
+    return look;
+}
+
 bool HIDCore::IsNmouseInUse() const {
     if (!nmouse_in_use) {
         return false;

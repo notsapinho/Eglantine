@@ -7,6 +7,8 @@
 #pragma once
 
 #include <atomic>
+#include <utility>
+#include <mutex>
 #include <memory>
 
 #include "common/common_funcs.h"
@@ -77,6 +79,14 @@ public:
     void SetNmouseWheelDpad(s8 direction);
     s8 GetNmouseWheelDpad() const;
 
+    /// A game hook turns the camera with the mouse (core/pokopia): with mouse panning on, the
+    /// window hands its mouse movement here instead of to the emulated right stick.
+    void SetMouseCameraHooked(bool hooked);
+    bool IsMouseCameraHooked() const;
+    void AddMouseLook(s32 dx, s32 dy);
+    /// The movement since the last call, in window pixels (y down).
+    std::pair<s32, s32> TakeMouseLook();
+
     /// Sets all emulated controllers into configuring mode.
     void EnableAllControllerConfiguration();
 
@@ -110,6 +120,10 @@ public:
     std::atomic<bool> nmouse_in_use{false};
     std::atomic<bool> nmouse_active{false};
     std::atomic<s8> nmouse_wheel_dpad{0};
+    std::atomic<bool> mouse_camera_hooked{false};
+    std::mutex mouse_look_mutex;
+    s32 mouse_look_x{};
+    s32 mouse_look_y{};
 };
 
 } // namespace Core::HID
