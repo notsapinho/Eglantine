@@ -383,6 +383,7 @@
     <string name="settings_description">Configure emulator settings</string>
     <string name="search_recently_played">Recently played</string>
     <string name="search_recently_added">Recently added</string>
+    <string name="open_file">Open file</string>
     <string name="open_user_folder">Open Eden folder</string>
     <string name="open_user_folder_description">Manage Eden\'s internal files</string>
     <string name="app_settings_description">Modify the behavior and look of the app</string>
