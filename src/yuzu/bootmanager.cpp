@@ -49,6 +49,7 @@
 
 #include "common/scm_rev.h"
 #include "common/settings.h"
+#include "hid_core/hid_core.h"
 #include "common/settings_input.h"
 #include "core/core.h"
 #include "core/cpu_manager.h"
@@ -487,6 +488,17 @@ void GRenderWindow::mousePressEvent(QMouseEvent* event) {
     const auto pos = mapFromGlobal(QCursor::pos());
     const auto [x, y] = ScaleTouch(pos);
     const auto [touch_x, touch_y] = MapToTouchScreen(x, y);
+    // Pokopia's Joy-Con 2 mouse: the middle button switches the mouse between the camera (mouse
+    // panning) and the Joy-Con mouse, as Ctrl+F9 does.
+    if (event->button() == Qt::MiddleButton && QtCommon::system &&
+        QtCommon::system->HIDCore().IsNmouseInUse()) {
+        Settings::values.mouse_panning = !Settings::values.mouse_panning.GetValue();
+        if (Settings::values.mouse_panning.GetValue()) {
+            installEventFilter(this);
+            setAttribute(Qt::WA_Hover, true);
+        }
+        return;
+    }
     const auto button = QtButtonToMouseButton(event->button());
 
     input_subsystem->GetMouse()->PressMouseButton(button);

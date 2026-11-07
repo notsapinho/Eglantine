@@ -1,9 +1,12 @@
 // SPDX-FileCopyrightText: Copyright 2026 Eden Emulator Project
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+#include <algorithm>
 #include <cmath>
+#include <cstdlib>
 
 #include "common/logging.h"
+#include "common/settings.h"
 #include "core/core_timing.h"
 #include "core/hle/kernel/k_process.h"
 #include "core/memory.h"
@@ -46,6 +49,8 @@ void Nmouse::Finalize() {
     std::scoped_lock lock{mutex};
     transfer_memory = {};
     owner = nullptr;
+    wheel_pending = 0;
+    wheel_tap_pressed = false;
     hid_core.SetNmouseInUse(false);
 }
 
@@ -129,11 +134,17 @@ void Nmouse::UpdateNmouse(s64 now_ns) {
     last_y = y;
     has_last_position = true;
 
-    if (moved) {
+    // With mouse panning on, the mouse is the camera: the Joy-Con stays lifted, and moves made
+    // meanwhile do not count, so turning panning off leaves it lifted until the mouse moves.
+    const bool panning = Settings::values.mouse_panning.GetValue();
+    if (panning) {
+        has_moved = false;
+    } else if (moved) {
         last_moved_ns = now_ns;
         has_moved = true;
     }
     const bool on_table = has_moved && now_ns - last_moved_ns < LiftAfterNs;
+    hid_core.SetNmouseActive(on_table);
 
     // Wheel notches since the previous sample. Turns while the Joy-Con is lifted are dropped, so
     // they do not arrive in one burst when it goes back on the table.
@@ -143,6 +154,7 @@ void Nmouse::UpdateNmouse(s64 now_ns) {
     last_wheel_x = wheel.x;
     last_wheel_y = wheel.y;
     has_last_wheel = true;
+    UpdateWheelDpad(wheel_y, now_ns);
 
     const u32 buttons = on_table ? emulated_devices->GetMouseButtons().raw : 0;
 
@@ -166,6 +178,27 @@ void Nmouse::UpdateNmouse(s64 now_ns) {
         lifos[i].WriteNextEntry(state);
         memory.WriteBlock(transfer_memory + LifoOffset + i * LifoStride, &lifos[i],
                           sizeof(lifos[i]));
+    }
+}
+
+void Nmouse::UpdateWheelDpad(s32 wheel_y, s64 now_ns) {
+    // Small steps (touchpads) add up to a notch; at most eight notches wait their turn.
+    wheel_pending = std::clamp(wheel_pending + wheel_y, -8 * WheelNotch, 8 * WheelNotch);
+    if (now_ns < wheel_tap_until_ns) {
+        return;
+    }
+    if (wheel_tap_pressed) {
+        wheel_tap_pressed = false;
+        hid_core.SetNmouseWheelDpad(0);
+        wheel_tap_until_ns = now_ns + WheelTapGapNs;
+        return;
+    }
+    if (std::abs(wheel_pending) >= WheelNotch) {
+        const s8 direction = wheel_pending > 0 ? 1 : -1;
+        wheel_pending -= direction * WheelNotch;
+        wheel_tap_pressed = true;
+        hid_core.SetNmouseWheelDpad(direction);
+        wheel_tap_until_ns = now_ns + WheelTapPressNs;
     }
 }
 

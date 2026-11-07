@@ -156,6 +156,7 @@ private:
     void WriteLayout();
     void UpdateNmouse(s64 now_ns);
     void UpdateJcms(s64 now_ns);
+    void UpdateWheelDpad(s32 wheel_y, s64 now_ns);
 
     std::mutex mutex;
     Common::ProcessAddress transfer_memory{};
@@ -177,6 +178,15 @@ private:
     s32 last_wheel_x{};
     s32 last_wheel_y{};
     bool has_last_wheel{};
+
+    // The wheel also taps player 1's D-pad, one tap per notch (up away from the user), as Recompia
+    // binds it: the Joy-Con mouse has no wheel of its own for the game to act on.
+    static constexpr s32 WheelNotch = 120;
+    static constexpr s64 WheelTapPressNs = 50'000'000;
+    static constexpr s64 WheelTapGapNs = 50'000'000;
+    s32 wheel_pending{};
+    bool wheel_tap_pressed{};
+    s64 wheel_tap_until_ns{};
 
     Common::ProcessAddress jcms_memory{};
     Kernel::KProcess* jcms_owner{};

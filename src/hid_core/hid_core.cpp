@@ -171,6 +171,26 @@ NpadIdType HIDCore::GetLastActiveController() const {
 
 void HIDCore::SetNmouseInUse(bool in_use) {
     nmouse_in_use = in_use;
+    if (!in_use) {
+        nmouse_active = false;
+        nmouse_wheel_dpad = 0;
+    }
+}
+
+void HIDCore::SetNmouseActive(bool active) {
+    nmouse_active = active;
+}
+
+bool HIDCore::IsNmouseActive() const {
+    return nmouse_active;
+}
+
+void HIDCore::SetNmouseWheelDpad(s8 direction) {
+    nmouse_wheel_dpad = direction;
+}
+
+s8 HIDCore::GetNmouseWheelDpad() const {
+    return nmouse_wheel_dpad;
 }
 
 bool HIDCore::IsNmouseInUse() const {

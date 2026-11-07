@@ -465,8 +465,10 @@ void NPad::RequestPadStateUpdate(Kernel::KernelCore& kernel, u64 aruid, Core::HI
         pad_entry.npad_buttons.raw = button_state.raw & right_button_mask;
         pad_entry.r_stick = stick_state.right;
 
-        // The host mouse is this Joy-Con's mouse (Nmouse): its clicks are the Joy-Con's ZR and R.
-        if (npad_id == Core::HID::NpadIdType::Player1 && hid_core.IsNmouseInUse()) {
+        // The host mouse is this Joy-Con's mouse (Nmouse): while it is on its surface, its clicks
+        // are the Joy-Con's ZR and R.
+        if (npad_id == Core::HID::NpadIdType::Player1 && hid_core.IsNmouseInUse() &&
+            hid_core.IsNmouseActive()) {
             const auto mouse_buttons = hid_core.GetEmulatedDevices()->GetMouseButtons();
             if (mouse_buttons.left) {
                 pad_entry.npad_buttons.raw |= btn::ZR;
@@ -483,6 +485,16 @@ void NPad::RequestPadStateUpdate(Kernel::KernelCore& kernel, u64 aruid, Core::HI
             btn::Minus | btn::StickLLeft | btn::StickLUp | btn::StickLRight | btn::StickLDown;
         pad_entry.npad_buttons.raw |= button_state.raw & left_button_mask;
         pad_entry.l_stick = stick_state.left;
+
+        // The mouse wheel taps the D-pad (Nmouse::UpdateWheelDpad).
+        if (npad_id == Core::HID::NpadIdType::Player1 && hid_core.IsNmouseInUse()) {
+            const s8 wheel_dpad = hid_core.GetNmouseWheelDpad();
+            if (wheel_dpad > 0) {
+                pad_entry.npad_buttons.raw |= btn::Up;
+            } else if (wheel_dpad < 0) {
+                pad_entry.npad_buttons.raw |= btn::Down;
+            }
+        }
     }
 
     if (controller_type == Core::HID::NpadStyleIndex::JoyconLeft ||

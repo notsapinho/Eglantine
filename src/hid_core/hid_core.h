@@ -69,6 +69,14 @@ public:
     /// Also needs player 1 on Dual or right Joy-Cons, the controllers that are a mouse.
     bool IsNmouseInUse() const;
 
+    /// The Joy-Con 2 mouse is on its surface: only then are the host mouse buttons its ZR and R.
+    void SetNmouseActive(bool active);
+    bool IsNmouseActive() const;
+
+    /// The D-pad direction the mouse wheel is tapping on player 1: 1 up, -1 down, 0 none.
+    void SetNmouseWheelDpad(s8 direction);
+    s8 GetNmouseWheelDpad() const;
+
     /// Sets all emulated controllers into configuring mode.
     void EnableAllControllerConfiguration();
 
@@ -100,6 +108,8 @@ public:
     NpadStyleTag supported_style_tag{NpadStyleSet::All};
     NpadIdType last_active_controller{NpadIdType::Handheld};
     std::atomic<bool> nmouse_in_use{false};
+    std::atomic<bool> nmouse_active{false};
+    std::atomic<s8> nmouse_wheel_dpad{0};
 };
 
 } // namespace Core::HID
