@@ -28,7 +28,7 @@
 #include "core/hle/kernel/k_thread.h"
 #include "core/hle/kernel/svc.h"
 #include "core/loader/nso.h"
-#include "core/pokopia/mouse_camera.h"
+#include "core/pokopia/pokopia.h"
 #include "hid_core/hid_core.h"
 #include "core/memory.h"
 
@@ -366,16 +366,15 @@ std::optional<VAddr> AppLoader_NSO::LoadModule(Kernel::KProcess& process, Core::
         }
     }
 
-    // Game hooks belong to one main module: a new one starts without them. Pokopia 2.0.1's mouse
-    // camera puts its own back (core/pokopia).
+    // Game hooks belong to one main module: a new one starts without them. Pokopia 2.0.1 puts its
+    // own back (core/pokopia).
     if (nso_file.GetName() == "main") {
         Kernel::Svc::g_guest_hooks.clear();
         system.HIDCore().SetMouseCameraHooked(false);
         const auto& text = nso_header.segments[0];
-        Core::Pokopia::InstallMouseCamera(
-            system, std::span{codeset.memory}.subspan(module_start), load_base,
-            process.GetProgramId(), nso_header.build_id, text.location, text.size,
-            codeset.segments[0].size);
+        Core::Pokopia::Install(system, std::span{codeset.memory}.subspan(module_start), load_base,
+                               process.GetProgramId(), nso_header.build_id, text.location,
+                               text.size, codeset.segments[0].size);
     }
 
     // Load codeset for current process

@@ -9,23 +9,14 @@
 // +0x128 / +0x124 when the strafe-style option is on, and marks manual input (+0xff = 1, +0x13c = 0).
 // main+0x87d30 is right after it read the stick, inside the branch that only runs while the player
 // may turn the camera, with the camera in x19. The hook adds the mouse there the same way.
-//
-// The hook: the instruction at the site becomes a branch to a stub in the text segment's padding,
-// which runs svc 0x7d (the kernel calls OnCameraTurn, svc.cpp), then the replaced instruction, then
-// branches back.
 
 #include "core/pokopia/mouse_camera.h"
+#include "core/pokopia/hooks.h"
 
 #include <algorithm>
-#include <array>
 #include <bit>
 #include <chrono>
-#include <cstdlib>
-#include <cstring>
-#include <optional>
-#include <vector>
 
-#include "common/alignment.h"
 #include "common/logging.h"
 #include "common/settings.h"
 #include "core/core.h"
@@ -36,11 +27,6 @@
 namespace Core::Pokopia {
 
 namespace {
-
-constexpr u64 ProgramId = 0x0400A3A01EE4C000ULL;
-// Main module build ID of version 2.0.1 (the same build as Recompia's and the FPS mods').
-constexpr std::array<u8, 20> BuildId{0x76, 0xA4, 0x89, 0xF3, 0xBD, 0x36, 0x42, 0xFA, 0x5E, 0x18,
-                                     0xBD, 0x83, 0xD3, 0x2C, 0x98, 0xBA, 0xCC, 0x5F, 0x7D, 0x0E};
 
 constexpr std::size_t TurnSite = 0x87d30;
 
@@ -64,8 +50,6 @@ constexpr double RadiansPerPixel = 0.000767945;
 // Movement older than this when the camera can turn again was made in a menu or a cutscene and is
 // dropped, so the view does not jump when control comes back.
 constexpr s64 GraceNs = 250'000'000;
-
-constexpr u32 SvcHook = 0xD4000001 | (0x7d << 5);
 
 u64 g_main_base{};
 s64 g_last_turn_ns{};
@@ -150,144 +134,15 @@ void OnCameraTurn(Core::System& system, Kernel::Svc::ThreadContext& ctx) {
     memory.Write8(cam + CamManual, 1);
 }
 
-s64 SignExtend(u64 value, int bits) {
-    const u64 sign = u64{1} << (bits - 1);
-    return static_cast<s64>((value ^ sign) - sign);
-}
-
-std::optional<u32> Branch(u64 from, u64 to, bool link = false) {
-    const s64 offset = static_cast<s64>(to - from);
-    if ((offset & 3) != 0 || offset < -(s64{1} << 27) || offset >= (s64{1} << 27)) {
-        return std::nullopt;
-    }
-    return (link ? 0x94000000U : 0x14000000U) | static_cast<u32>((offset >> 2) & 0x3FFFFFF);
-}
-
-// The replaced instruction, rewritten to run at `to` instead of `from`: as it is unless it reads
-// the PC. Literal loads are not handled.
-std::optional<std::vector<u32>> Relocate(u32 insn, u64 from, u64 to) {
-    if ((insn & 0x7C000000) == 0x14000000) { // b, bl
-        const u64 target = from + SignExtend(insn & 0x3FFFFFF, 26) * 4;
-        const auto branch = Branch(to, target, (insn & 0x80000000) != 0);
-        if (!branch) {
-            return std::nullopt;
-        }
-        return std::vector<u32>{*branch};
-    }
-    const bool cond_branch = (insn & 0xFF000010) == 0x54000000;  // b.cond
-    const bool compare_branch = (insn & 0x7E000000) == 0x34000000; // cbz, cbnz
-    const bool test_branch = (insn & 0x7E000000) == 0x36000000;    // tbz, tbnz
-    if (cond_branch || compare_branch || test_branch) {
-        // The same test, jumping 8 bytes ahead to a far branch to the old target; otherwise
-        // falling through to a branch over it.
-        u64 target;
-        u32 near;
-        if (test_branch) {
-            target = from + SignExtend((insn >> 5) & 0x3FFF, 14) * 4;
-            near = (insn & ~(0x3FFFU << 5)) | (2U << 5);
-        } else {
-            target = from + SignExtend((insn >> 5) & 0x7FFFF, 19) * 4;
-            near = (insn & ~(0x7FFFFU << 5)) | (2U << 5);
-        }
-        const auto far = Branch(to + 8, target);
-        if (!far) {
-            return std::nullopt;
-        }
-        return std::vector<u32>{near, 0x14000002U, *far}; // b.cond +8; b +8; b target
-    }
-    if ((insn & 0x1F000000) == 0x10000000) { // adr, adrp
-        const u32 rd = insn & 31;
-        const u64 imm = ((insn >> 5) & 0x7FFFF) << 2 | ((insn >> 29) & 3);
-        const u64 value = (insn & 0x80000000) != 0
-                              ? (from & ~u64{0xFFF}) + (SignExtend(imm, 21) << 12)
-                              : from + SignExtend(imm, 21);
-        std::vector<u32> out;
-        for (u32 hw = 0; hw < 4; ++hw) {
-            const u32 part = static_cast<u32>((value >> (hw * 16)) & 0xFFFF);
-            out.push_back((hw == 0 ? 0xD2800000U : 0xF2800000U) | (hw << 21) | (part << 5) | rd);
-        }
-        return out;
-    }
-    if ((insn & 0x3B000000) == 0x18000000) { // ldr (literal), prfm (literal)
-        return std::nullopt;
-    }
-    return std::vector<u32>{insn};
-}
-
-u32 ReadWord(std::span<const u8> image, std::size_t offset) {
-    u32 word;
-    std::memcpy(&word, image.data() + offset, sizeof(word));
-    return word;
-}
-
-void WriteWord(std::span<u8> image, std::size_t offset, u32 word) {
-    std::memcpy(image.data() + offset, &word, sizeof(word));
-}
-
 } // namespace
 
-bool InstallMouseCamera(Core::System& system, std::span<u8> image, u64 load_base, u64 program_id,
-                        std::span<const u8> build_id, std::size_t text_offset,
-                        std::size_t text_size, std::size_t text_mapped) {
-    if (program_id != ProgramId || build_id.size() < BuildId.size() ||
-        !std::equal(BuildId.begin(), BuildId.end(), build_id.begin())) {
-        return false;
-    }
-    if (const char* off = std::getenv("EDEN_POKOPIA_MOUSE_CAMERA"); off && off[0] == '0') {
-        LOG_INFO(Loader, "Pokopia mouse camera: off (EDEN_POKOPIA_MOUSE_CAMERA=0)");
-        return false;
-    }
-    if (Settings::IsNceEnabled()) {
-        // NCE runs the game's code natively, where the stub's svc would not reach this hook.
-        LOG_INFO(Loader, "Pokopia mouse camera: not available with the NCE CPU backend");
-        return false;
-    }
-    const std::size_t site = text_offset + TurnSite;
-    if (site + 4 > text_offset + text_size) {
-        return false;
-    }
-    const u64 site_address = load_base + TurnSite;
-    const std::size_t stub = Common::AlignUp(text_offset + text_size, 4);
-    const u64 stub_address = load_base + (stub - text_offset);
-
-    const u32 original = ReadWord(image, site);
-    const auto moved = Relocate(original, site_address, stub_address + 4);
-    if (!moved) {
-        LOG_ERROR(Loader, "Pokopia mouse camera: cannot move instruction {:08x} at main+{:#x}",
-                  original, TurnSite);
-        return false;
-    }
-    const std::size_t stub_words = 1 + moved->size() + 1;
-    const std::size_t stub_end = stub + stub_words * 4;
-    if (stub_end > text_offset + text_mapped ||
-        !std::all_of(image.begin() + stub, image.begin() + stub_end,
-                     [](u8 byte) { return byte == 0; })) {
-        LOG_ERROR(Loader, "Pokopia mouse camera: no free space after the text segment");
-        return false;
-    }
-    const auto back = Branch(stub_address + (stub_words - 1) * 4, site_address + 4);
-    const auto to_stub = Branch(site_address, stub_address);
-    if (!back || !to_stub) {
-        return false;
-    }
-
-    std::size_t offset = stub;
-    WriteWord(image, offset, SvcHook);
-    offset += 4;
-    for (const u32 word : *moved) {
-        WriteWord(image, offset, word);
-        offset += 4;
-    }
-    WriteWord(image, offset, *back);
-    WriteWord(image, site, *to_stub);
-
-    g_main_base = load_base;
+bool InstallMouseCamera(Core::System& system, HookInstaller& hooks, u64 main_base) {
+    g_main_base = main_base;
     g_last_turn_ns = 0;
-    Kernel::Svc::g_guest_hooks[stub_address] = &OnCameraTurn;
+    if (!hooks.Add(TurnSite, &OnCameraTurn, "mouse camera")) {
+        return false;
+    }
     system.HIDCore().SetMouseCameraHooked(true);
-    LOG_INFO(Loader,
-             "Pokopia mouse camera: hooked main+{:#x} ({:08x}) through a stub at main+{:#x}",
-             TurnSite, original, stub - text_offset);
     return true;
 }
 

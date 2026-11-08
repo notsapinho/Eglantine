@@ -199,6 +199,8 @@ void HIDCore::SetMouseCameraHooked(bool hooked) {
     mouse_camera_hooked = hooked;
     last_camera_turn_ns = 0;
     pointer_requested = false;
+    menu_up = false;
+    menu_buttons = 0;
     TakeMouseLook();
 }
 
@@ -207,6 +209,26 @@ void HIDCore::MarkCameraTurn(s64 now_ns) {
 }
 
 bool HIDCore::IsInPlay() const {
+    return IsCameraLive() && !menu_up;
+}
+
+void HIDCore::SetMenuUp(bool up) {
+    menu_up = up;
+}
+
+bool HIDCore::IsMenuUp() const {
+    return menu_up;
+}
+
+void HIDCore::SetMenuButtons(u64 buttons) {
+    menu_buttons = buttons;
+}
+
+u64 HIDCore::GetMenuButtons() const {
+    return menu_buttons;
+}
+
+bool HIDCore::IsCameraLive() const {
     const s64 last = last_camera_turn_ns;
     if (!mouse_camera_hooked || last == 0) {
         return false;

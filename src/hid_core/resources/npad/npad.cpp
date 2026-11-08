@@ -466,15 +466,15 @@ void NPad::RequestPadStateUpdate(Kernel::KernelCore& kernel, u64 aruid, Core::HI
         pad_entry.r_stick = stick_state.right;
 
         // The host mouse is this Joy-Con's mouse (Nmouse): while it is on its surface, its clicks
-        // are the Joy-Con's ZR and R.
+        // are the Joy-Con's R (left) and ZR (right). In a game menu they are the menu's.
         if (npad_id == Core::HID::NpadIdType::Player1 && hid_core.IsNmouseInUse() &&
-            hid_core.IsNmouseActive()) {
+            hid_core.IsNmouseActive() && !hid_core.IsMenuUp()) {
             const auto mouse_buttons = hid_core.GetEmulatedDevices()->GetMouseButtons();
             if (mouse_buttons.left) {
-                pad_entry.npad_buttons.raw |= btn::ZR;
+                pad_entry.npad_buttons.raw |= btn::R;
             }
             if (mouse_buttons.right) {
-                pad_entry.npad_buttons.raw |= btn::R;
+                pad_entry.npad_buttons.raw |= btn::ZR;
             }
         }
     }
@@ -495,6 +495,11 @@ void NPad::RequestPadStateUpdate(Kernel::KernelCore& kernel, u64 aruid, Core::HI
                 pad_entry.npad_buttons.raw |= btn::Down;
             }
         }
+    }
+
+    // The menu mouse's steps and confirmations (core/pokopia).
+    if (npad_id == Core::HID::NpadIdType::Player1) {
+        pad_entry.npad_buttons.raw |= static_cast<btn>(hid_core.GetMenuButtons());
     }
 
     if (controller_type == Core::HID::NpadStyleIndex::JoyconLeft ||

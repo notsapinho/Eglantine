@@ -89,9 +89,19 @@ public:
 
     /// The hooked camera ran its turn step (the player may turn the camera) at `now_ns`.
     void MarkCameraTurn(s64 now_ns);
-    /// The game is in play: the hooked camera could turn within the last 250 ms. False in menus,
-    /// the pause screen, loading screens and cutscenes, and when no hook is in.
+    /// The hooked camera could turn within the last 250 ms. False in menus outside play, the
+    /// pause screen, loading screens and cutscenes, and when no hook is in.
+    bool IsCameraLive() const;
+    /// In play: the camera is live and no menu is up over it.
     bool IsInPlay() const;
+
+    /// A game menu is up (core/pokopia's menu mouse): the mouse is the menu's pointer, its clicks
+    /// are not the Joy-Con mouse's.
+    void SetMenuUp(bool up);
+    bool IsMenuUp() const;
+    /// Buttons the menu mouse presses on player 1 (NpadButton bits).
+    void SetMenuButtons(u64 buttons);
+    u64 GetMenuButtons() const;
 
     /// The player switched from the mouse camera to the Joy-Con mouse pointer (middle click): the
     /// camera takes the mouse back when the game leaves play (Nmouse::UpdateNmouse).
@@ -134,6 +144,8 @@ public:
     std::atomic<bool> mouse_camera_hooked{false};
     std::atomic<s64> last_camera_turn_ns{0};
     std::atomic<bool> pointer_requested{false};
+    std::atomic<bool> menu_up{false};
+    std::atomic<u64> menu_buttons{0};
     std::mutex mouse_look_mutex;
     s32 mouse_look_x{};
     s32 mouse_look_y{};

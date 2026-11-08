@@ -3,9 +3,6 @@
 
 #pragma once
 
-#include <cstddef>
-#include <span>
-
 #include "common/common_types.h"
 
 namespace Core {
@@ -14,15 +11,11 @@ class System;
 
 namespace Core::Pokopia {
 
+class HookInstaller;
+
 /// Pokémon Pokopia 2.0.1's mouse camera, after featureJosh/Recompia (games/pkp/pkp_play.cpp):
 /// with mouse panning on, the mouse turns the follow camera's yaw and pitch directly, by an exact
 /// angle per pixel, instead of through an emulated right stick.
-///
-/// Called by the NSO loader for every main module before it is mapped. `image` is the module from
-/// its base, the text segment is `text_size` bytes at `text_offset` and maps `text_mapped` bytes.
-/// Other games and versions are left alone. Returns true when the hook is in.
-bool InstallMouseCamera(Core::System& system, std::span<u8> image, u64 load_base, u64 program_id,
-                        std::span<const u8> build_id, std::size_t text_offset,
-                        std::size_t text_size, std::size_t text_mapped);
+bool InstallMouseCamera(Core::System& system, HookInstaller& hooks, u64 main_base);
 
 } // namespace Core::Pokopia
