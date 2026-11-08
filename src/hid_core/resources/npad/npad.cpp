@@ -502,6 +502,20 @@ void NPad::RequestPadStateUpdate(Kernel::KernelCore& kernel, u64 aruid, Core::HI
         pad_entry.npad_buttons.raw |= static_cast<btn>(hid_core.GetMenuButtons());
     }
 
+    // Pokopia's mouse camera mode (mouse panning on, in play): the left button is ZR (use a
+    // move), the right one ZL, as Recompia binds them. The Joy-Con mouse and menus have their own.
+    if (npad_id == Core::HID::NpadIdType::Player1 && hid_core.IsMouseCameraHooked() &&
+        Settings::values.mouse_panning.GetValue() && hid_core.IsInPlay() &&
+        !hid_core.IsNmouseActive()) {
+        const auto mouse_buttons = hid_core.GetEmulatedDevices()->GetMouseButtons();
+        if (mouse_buttons.left) {
+            pad_entry.npad_buttons.raw |= btn::ZR;
+        }
+        if (mouse_buttons.right) {
+            pad_entry.npad_buttons.raw |= btn::ZL;
+        }
+    }
+
     if (controller_type == Core::HID::NpadStyleIndex::JoyconLeft ||
         controller_type == Core::HID::NpadStyleIndex::JoyconDual) {
         pad_entry.npad_buttons.left_sl.Assign(button_state.left_sl);

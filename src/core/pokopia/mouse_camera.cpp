@@ -16,6 +16,7 @@
 #include <algorithm>
 #include <bit>
 #include <chrono>
+#include <cstdlib>
 
 #include "common/logging.h"
 #include "common/settings.h"
@@ -29,6 +30,11 @@ namespace Core::Pokopia {
 namespace {
 
 constexpr std::size_t TurnSite = 0x87d30;
+// After the follow placement's tick (main+0x249780 runs it only when the summed frame time passes
+// 1/120 s): w0 bit 0 = run the placement. Above 120 fps the eye then moved every second or third
+// frame while the angles moved every frame; forcing the bit moves it every frame (Recompia's
+// camera_every_frame, default on). The tick's other work keeps its own rate.
+constexpr std::size_t FollowGateSite = 0x249848;
 
 constexpr u64 CamPlayer = 0x8;
 constexpr u64 CamPitch = 0xa0;
@@ -134,6 +140,10 @@ void OnCameraTurn(Core::System& system, Kernel::Svc::ThreadContext& ctx) {
     memory.Write8(cam + CamManual, 1);
 }
 
+void OnFollowGate(Core::System&, Kernel::Svc::ThreadContext& ctx) {
+    ctx.r[0] |= 1;
+}
+
 } // namespace
 
 bool InstallMouseCamera(Core::System& system, HookInstaller& hooks, u64 main_base) {
@@ -141,6 +151,11 @@ bool InstallMouseCamera(Core::System& system, HookInstaller& hooks, u64 main_bas
     g_last_turn_ns = 0;
     if (!hooks.Add(TurnSite, &OnCameraTurn, "mouse camera")) {
         return false;
+    }
+    if (const char* off = std::getenv("EDEN_POKOPIA_CAMERA_EVERY_FRAME"); off && off[0] == '0') {
+        LOG_INFO(Loader, "Pokopia camera every frame: off (EDEN_POKOPIA_CAMERA_EVERY_FRAME=0)");
+    } else {
+        hooks.Add(FollowGateSite, &OnFollowGate, "camera every frame");
     }
     system.HIDCore().SetMouseCameraHooked(true);
     return true;
