@@ -37,6 +37,7 @@
 #include "video_core/texture_cache/samples_helper.h"
 #include "video_core/texture_cache/texture_cache_base.h"
 #include "video_core/texture_cache/util.h"
+#include "video_core/texture_cache/texture_mods.h"
 #include "video_core/nx2.h"
 #include "video_core/nx2_profile.h"
 #include "video_core/cache_tracking_diagnostics.h"
@@ -2335,10 +2336,19 @@ void TextureCache<P>::UploadImageContents(Image& image, StagingBuffer& staging) 
     if (True(image.flags & ImageFlagBits::Converted)) {
         unswizzle_data_buffer.resize_destructive(image.unswizzled_size_bytes);
         auto copies = UnswizzleImage(*gpu_memory, gpu_addr, image.info, swizzle_data, unswizzle_data_buffer);
+        if (TextureMods::Active()) {
+            TextureMods::OnUpload(image.info, swizzle_data,
+                                  std::span<u8>(unswizzle_data_buffer.data(),
+                                                unswizzle_data_buffer.size()),
+                                  copies);
+        }
         ConvertImage(unswizzle_data_buffer, image.info, mapped_span, copies);
         image.UploadMemory(staging, copies);
     } else {
         const auto copies = UnswizzleImage(*gpu_memory, gpu_addr, image.info, swizzle_data, mapped_span);
+        if (TextureMods::Active()) {
+            TextureMods::OnUpload(image.info, swizzle_data, mapped_span, copies);
+        }
         image.UploadMemory(staging, copies);
     }
 }

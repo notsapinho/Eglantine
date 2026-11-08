@@ -281,6 +281,8 @@ add_library(video_core STATIC
     texture_cache/texture_cache.h
     texture_cache/texture_cache_base.h
     texture_cache/types.h
+    texture_cache/texture_mods.cpp
+    texture_cache/texture_mods.h
     texture_cache/util.cpp
     texture_cache/util.h
     textures/astc.h
