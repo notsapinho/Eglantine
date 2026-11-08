@@ -116,6 +116,7 @@ void OnCameraTurn(Core::System& system, Kernel::Svc::ThreadContext& ctx) {
     const s64 now = NowNs();
     const bool fresh = g_last_turn_ns != 0 && now - g_last_turn_ns <= GraceNs;
     g_last_turn_ns = now;
+    hid.MarkCameraTurn(now);
     if (!fresh || (dx == 0 && dy == 0) || !Settings::values.mouse_panning.GetValue() ||
         hid.IsNmouseActive()) {
         return;

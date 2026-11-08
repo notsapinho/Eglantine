@@ -5086,8 +5086,14 @@ void MainWindow::ShowMouseCursor() {
 void MainWindow::OnMouseActivity() {
     // A game reading the Switch 2 mouse draws its own pointer: the host one would be a second
     // cursor.
-    if (QtCommon::system->HIDCore().IsNmouseInUse()) {
+    // Out of play the hooked mouse camera lets the cursor go (Pokopia 2.0.1): show it there.
+    auto& hid = QtCommon::system->HIDCore();
+    if (hid.IsNmouseInUse() && !(hid.IsMouseCameraHooked() && !hid.IsInPlay())) {
         render_window->SetCursorHidden(true);
+        return;
+    }
+    if (hid.IsMouseCameraHooked() && !hid.IsInPlay()) {
+        ShowMouseCursor();
         return;
     }
     if (!Settings::values.mouse_panning) {

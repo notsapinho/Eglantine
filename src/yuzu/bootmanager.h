@@ -189,6 +189,8 @@ private:
 #endif
 
     QTimer mouse_constrain_timer;
+    // The hooked mouse camera re-centres the cursor before counting movement (mouseMoveEvent).
+    bool look_recenter = true;
     QTimer mouse_update_timer;
 
 protected:

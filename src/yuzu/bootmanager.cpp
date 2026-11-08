@@ -492,10 +492,16 @@ void GRenderWindow::mousePressEvent(QMouseEvent* event) {
     // panning) and the Joy-Con mouse, as Ctrl+F9 does.
     if (event->button() == Qt::MiddleButton && QtCommon::system &&
         QtCommon::system->HIDCore().IsNmouseInUse()) {
+        auto& hid = QtCommon::system->HIDCore();
         Settings::values.mouse_panning = !Settings::values.mouse_panning.GetValue();
+        // From the mouse camera to the pointer: the camera takes the mouse back when the game
+        // leaves play (Nmouse).
+        hid.SetPointerRequested(!Settings::values.mouse_panning.GetValue() &&
+                                hid.IsMouseCameraHooked());
         if (Settings::values.mouse_panning.GetValue()) {
             installEventFilter(this);
             setAttribute(Qt::WA_Hover, true);
+            look_recenter = true;
         }
         return;
     }
@@ -524,16 +530,30 @@ void GRenderWindow::mouseMoveEvent(QMouseEvent* event) {
     input_subsystem->GetMouse()->MouseMove(touch_x, touch_y);
     input_subsystem->GetMouse()->TouchMove(touch_x, touch_y);
     // A game hook turns the camera with the mouse (Pokopia 2.0.1, core/pokopia): with mouse
-    // panning on, the movement goes to it instead of the emulated right stick.
-    if (Settings::values.mouse_panning && !Settings::values.mouse_enabled && QtCommon::system &&
-        QtCommon::system->HIDCore().IsMouseCameraHooked()) {
-        QtCommon::system->HIDCore().AddMouseLook(pos.x() - center_x, pos.y() - center_y);
+    // panning on, the movement goes to it instead of the emulated right stick. Out of play (menus,
+    // pause, loading, cutscenes) the cursor is left free; back in play it is centred again before
+    // any movement counts, so the view does not jump.
+    const bool hooked_look = Settings::values.mouse_panning && !Settings::values.mouse_enabled &&
+                             QtCommon::system &&
+                             QtCommon::system->HIDCore().IsMouseCameraHooked();
+    bool center_cursor = Settings::values.mouse_panning && !Settings::values.mouse_enabled;
+    if (hooked_look) {
+        auto& hid = QtCommon::system->HIDCore();
+        if (!hid.IsInPlay()) {
+            look_recenter = true;
+            center_cursor = false;
+        } else if (look_recenter) {
+            look_recenter = false;
+        } else {
+            hid.AddMouseLook(pos.x() - center_x, pos.y() - center_y);
+        }
     } else {
+        look_recenter = true;
         input_subsystem->GetMouse()->Move(pos.x(), pos.y(), center_x, center_y);
     }
 
     // Center mouse for mouse panning
-    if (Settings::values.mouse_panning && !Settings::values.mouse_enabled) {
+    if (center_cursor) {
         QCursor::setPos(mapToGlobal(QPoint{center_x, center_y}));
     }
 

@@ -4,6 +4,8 @@
 // SPDX-FileCopyrightText: Copyright 2021 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <chrono>
+
 #include "common/assert.h"
 #include "hid_core/frontend/emulated_console.h"
 #include "hid_core/frontend/emulated_controller.h"
@@ -195,7 +197,32 @@ s8 HIDCore::GetNmouseWheelDpad() const {
 
 void HIDCore::SetMouseCameraHooked(bool hooked) {
     mouse_camera_hooked = hooked;
+    last_camera_turn_ns = 0;
+    pointer_requested = false;
     TakeMouseLook();
+}
+
+void HIDCore::MarkCameraTurn(s64 now_ns) {
+    last_camera_turn_ns = now_ns;
+}
+
+bool HIDCore::IsInPlay() const {
+    const s64 last = last_camera_turn_ns;
+    if (!mouse_camera_hooked || last == 0) {
+        return false;
+    }
+    const s64 now = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                        std::chrono::steady_clock::now().time_since_epoch())
+                        .count();
+    return now - last <= 250'000'000;
+}
+
+void HIDCore::SetPointerRequested(bool requested) {
+    pointer_requested = requested;
+}
+
+bool HIDCore::IsPointerRequested() const {
+    return pointer_requested;
 }
 
 bool HIDCore::IsMouseCameraHooked() const {

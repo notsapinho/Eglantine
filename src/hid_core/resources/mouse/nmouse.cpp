@@ -134,6 +134,13 @@ void Nmouse::UpdateNmouse(s64 now_ns) {
     last_y = y;
     has_last_position = true;
 
+    // A pointer asked for with the middle button lasts while the game is in play (Recompia's
+    // play_frame): a menu, the pause screen or a loading screen gives the mouse back to the camera.
+    if (hid_core.IsPointerRequested() && hid_core.IsMouseCameraHooked() && !hid_core.IsInPlay()) {
+        hid_core.SetPointerRequested(false);
+        Settings::values.mouse_panning = true;
+    }
+
     // With mouse panning on, the mouse is the camera: the Joy-Con stays lifted, and moves made
     // meanwhile do not count, so turning panning off leaves it lifted until the mouse moves.
     const bool panning = Settings::values.mouse_panning.GetValue();

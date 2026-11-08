@@ -87,6 +87,17 @@ public:
     /// The movement since the last call, in window pixels (y down).
     std::pair<s32, s32> TakeMouseLook();
 
+    /// The hooked camera ran its turn step (the player may turn the camera) at `now_ns`.
+    void MarkCameraTurn(s64 now_ns);
+    /// The game is in play: the hooked camera could turn within the last 250 ms. False in menus,
+    /// the pause screen, loading screens and cutscenes, and when no hook is in.
+    bool IsInPlay() const;
+
+    /// The player switched from the mouse camera to the Joy-Con mouse pointer (middle click): the
+    /// camera takes the mouse back when the game leaves play (Nmouse::UpdateNmouse).
+    void SetPointerRequested(bool requested);
+    bool IsPointerRequested() const;
+
     /// Sets all emulated controllers into configuring mode.
     void EnableAllControllerConfiguration();
 
@@ -121,6 +132,8 @@ public:
     std::atomic<bool> nmouse_active{false};
     std::atomic<s8> nmouse_wheel_dpad{0};
     std::atomic<bool> mouse_camera_hooked{false};
+    std::atomic<s64> last_camera_turn_ns{0};
+    std::atomic<bool> pointer_requested{false};
     std::mutex mouse_look_mutex;
     s32 mouse_look_x{};
     s32 mouse_look_y{};
