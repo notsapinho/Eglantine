@@ -549,7 +549,11 @@ void GRenderWindow::mouseMoveEvent(QMouseEvent* event) {
         }
     } else {
         look_recenter = true;
-        input_subsystem->GetMouse()->Move(pos.x(), pos.y(), center_x, center_y);
+        // With the Pokopia hooks the mouse is the camera (above), the Joy-Con mouse or the menu
+        // pointer: never the emulated stick, which a held button would drag (Mouse::Move).
+        if (!QtCommon::system || !QtCommon::system->HIDCore().IsMouseCameraHooked()) {
+            input_subsystem->GetMouse()->Move(pos.x(), pos.y(), center_x, center_y);
+        }
     }
 
     // Center mouse for mouse panning
